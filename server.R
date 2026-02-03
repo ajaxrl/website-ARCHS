@@ -177,7 +177,7 @@ function(input, output, session) {
           ),
           card_footer(class = "text-center", a(href = offre$Lien_Annonce, target = "_blank", class = "btn btn-outline-primary btn-sm", "Voir l'offre originale"))
         ),
-        div(style = "display: flex; justify-content: center; gap: 30px; margin-top: 20px;",
+        div(style = "display: flex; justify-content: center; align-items: center; gap: 30px; margin-top: 20px; width: 100%;",
             actionButton("pass_btn", "", icon = icon("times", class = "fa-2x"), title = "Passer (←)", class = "btn-circle-lg btn-pass"),
             actionButton("like_btn", "", icon = icon("heart", class = "fa-2x"), title = "Aimer (→)", class = "btn-circle-lg btn-like"))
       )

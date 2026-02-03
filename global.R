@@ -63,46 +63,43 @@ CSS_STYLES <- HTML("
     box-shadow: 0 10px 25px rgba(118, 75, 162, 0.3);
   }
   
+  /* 1. Style des boutons (les cercles) */
   .btn-circle-lg {
     width: 80px !important;
     height: 80px !important;
     border-radius: 50% !important;
-    padding: 0 !important;
+    border: none !important;
+    color: white !important;
     
-    /* Centrage Flexbox ultra-strict */
+    /* Centrage Flexbox pour l'icône à l'intérieur */
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     
-    /* Reset des propriétés de texte qui causent le décalage */
+    /* Supprime les décalages par défaut */
+    padding: 0 !important;
     line-height: 1 !important;
-    text-indent: 0 !important;
-    text-align: center !important;
-    vertical-align: middle !important;
     
-    border: none !important;
-    color: white !important;
     box-shadow: 0 10px 20px rgba(0,0,0,0.15);
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
 
-  /* On cible l'icône spécifiquement pour supprimer ses marges internes */
+  /* 2. Ajustement des icônes à l'intérieur */
   .btn-circle-lg i {
     margin: 0 !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    width: auto !important;
-    height: auto !important;
     display: inline-block !important;
+    
+    /* DÉCALAGE VERS LA DROITE À L'INTÉRIEUR : 
+       On utilise transform pour un réglage ultra-précis 
+       Augmentez le '4px' si vous voulez plus de décalage vers la droite */
+    transform: translateX(3px) !important; 
   }
 
-  .btn-circle-lg:hover { 
-    transform: scale(1.1); 
-    box-shadow: 0 15px 30px rgba(0,0,0,0.2); 
-  }
-  
+  /* 3. Couleurs */
   .btn-pass { background: linear-gradient(135deg, #ff6b6b, #ee5253) !important; }
   .btn-like { background: linear-gradient(135deg, #1dd1a1, #10ac84) !important; }
+
+  .btn-circle-lg:hover { transform: scale(1.1); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
   
   /* Style pour la carte Leaflet */
   .leaflet-popup-content-wrapper { border-radius: 5px; }
