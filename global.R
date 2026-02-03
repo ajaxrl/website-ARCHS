@@ -64,13 +64,45 @@ CSS_STYLES <- HTML("
   }
   
   .btn-circle-lg {
-    width: 80px; height: 80px; border-radius: 50%; border: none; color: white;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.15); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    width: 80px !important;
+    height: 80px !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    
+    /* Centrage Flexbox ultra-strict */
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    /* Reset des propriétés de texte qui causent le décalage */
+    line-height: 1 !important;
+    text-indent: 0 !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    
+    border: none !important;
+    color: white !important;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
-  .btn-circle-lg:hover { transform: scale(1.1); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
-  .btn-pass { background: linear-gradient(135deg, #ff6b6b, #ee5253); }
-  .btn-like { background: linear-gradient(135deg, #1dd1a1, #10ac84); }
+
+  /* On cible l'icône spécifiquement pour supprimer ses marges internes */
+  .btn-circle-lg i {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    width: auto !important;
+    height: auto !important;
+    display: inline-block !important;
+  }
+
+  .btn-circle-lg:hover { 
+    transform: scale(1.1); 
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2); 
+  }
+  
+  .btn-pass { background: linear-gradient(135deg, #ff6b6b, #ee5253) !important; }
+  .btn-like { background: linear-gradient(135deg, #1dd1a1, #10ac84) !important; }
   
   /* Style pour la carte Leaflet */
   .leaflet-popup-content-wrapper { border-radius: 5px; }
@@ -130,11 +162,14 @@ calculer_scores_vectorized <- function(textes_offres, liste_tags_cv) {
 #' Calcule un score de correspondance (Unitaire)
 calculer_score_cv <- function(texte_offre, liste_tags_cv) {
   if (is.null(liste_tags_cv) || length(liste_tags_cv) == 0 || is.na(texte_offre)) return(0)
+  
   texte_offre_lower <- tolower(texte_offre)
+  
   sum(sapply(tolower(liste_tags_cv), function(tag) {
+    # On échappe les caractères spéciaux comme C++ ou .NET
     safe_tag <- gsub("([+.#])", "\\\\\\1", tag)
     pattern <- paste0("\\b", safe_tag, "\\b")
-    grepl(pattern, textes_offres_lower)
+    grepl(pattern, texte_offre_lower) 
   }))
 }
 
