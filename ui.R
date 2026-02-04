@@ -77,22 +77,49 @@ ui_tab_match <- nav_panel(
   style = "min-height: 85vh;",
   div(
     class = "container-fluid",
+    
+    # Section 1: Upload CV for AI matching
+    card(
+      class = "mb-4",
+      card_header("📄 Analyser mon CV avec IA"),
+      card_body(
+        fileInput("cv_file", "Télécharger votre CV (PDF)", 
+                  accept = c(".pdf")),
+        actionButton("apply_cv_match", "Analyser et matcher", 
+                     class = "btn-success"),
+        hr(),
+        uiOutput("cv_top_matches")
+      )
+    ),
+    
+    # Section 2: Skills-based Tinder interface
     layout_sidebar(
       sidebar = sidebar(
         width = "375px",
         title = "🎯 Votre Profil",
-        selectizeInput("cv_skills", "Vos compétences clés :", choices = choix_competences_reels, multiple = TRUE, options = list(create = TRUE, placeholder = "Ex: Python, AWS...", plugins = list('remove_button'))),
+        selectizeInput("cv_skills", "Vos compétences clés :", 
+                       choices = choix_competences_reels, 
+                       multiple = TRUE, 
+                       options = list(create = TRUE, 
+                                      placeholder = "Ex: Python, AWS...", 
+                                      plugins = list('remove_button'))),
         helpText("Le deck d'offres sera trié pour afficher les meilleures correspondances en premier."),
-        actionButton("apply_cv_sort", "Trier les offres", class="btn-primary w-100")
+        actionButton("apply_cv_sort", "Trier les offres", 
+                     class="btn-primary w-100")
       ),
       div(
         style = "max-width: 700px; margin: 0 auto;",
-        div(class = "text-end mb-2", actionButton("undo_btn", "Retour arrière", icon = icon("undo"), class = "btn-outline-secondary btn-sm")),
+        div(class = "text-end mb-2", 
+            actionButton("undo_btn", "Retour arrière", 
+                         icon = icon("undo"), 
+                         class = "btn-outline-secondary btn-sm")),
         uiOutput("match_interface")
       )
     )
   )
 )
+
+
 
 ui_tab_favs <- nav_panel(
   title = "Favoris",
@@ -107,6 +134,7 @@ ui_tab_favs <- nav_panel(
     DTOutput("table_favoris")
   )
 )
+
 
 # --- Assemblage UI ---
 

@@ -1,6 +1,13 @@
+getwd()
+
+library(here)
+Sys.unsetenv("RETICULATE_PYTHON")
+
 # ==============================================================================
 # 1. SETUP & LIBRARIES
 # ==============================================================================
+
+library(reticulate)
 library(shiny)
 library(bslib)
 library(dplyr)
@@ -14,12 +21,28 @@ library(stringr)
 library(leaflet)
 library(htmltools)
 
+use_python(here("pip_env", "Scripts", "python.exe"), required = TRUE)
+
+# ==============================================================================
+# 0. Get python classes and models
+# ==============================================================================
+
+source_python("classes/my_classes.py")
+
+MODEL_PATH <- "model/cv_job_matching.model"
+DATA_PATH <- here("data", "jobs.csv")
+
+if (!file.exists(MODEL_PATH)) {
+  trainer <- Doc2VecTrainer()
+  trainer$train(DATA_PATH, MODEL_PATH)
+}
+
 # ==============================================================================
 # 2. CONFIGURATION & CONSTANTS
 # ==============================================================================
 
 CONSTANTS <- list(
-  DATA_FILE = "jobs.csv",
+  DATA_FILE = "data/jobs.csv",
   MAX_SALARY_DEFAULT = 150000,
   MAX_EXP_DEFAULT = 20,
   SALARY_STEP = 5000,
