@@ -98,6 +98,10 @@ server <- function(input, output, session) {
   # ===========================================================================
   
   # --- Navigation Events ---
+  observeEvent(input$go_to_llm, {
+    nav_select("nav_main", "Recherche par LLM")
+  })
+  
   observeEvent(input$go_to_match, {
     nav_select("nav_main", "Match avec une offre")
   })
@@ -106,9 +110,17 @@ server <- function(input, output, session) {
     nav_select("nav_main", "Parcourir les offres")
   })
   
-  # --- CV Matching ---
+  # --- CV Matching (LLM) ---
   observeEvent(input$apply_cv_match, {
     req(input$cv_file)
+    
+    # Afficher notification de chargement
+    showNotification(
+      "Analyse en cours... Cela peut prendre quelques instants.",
+      id = "cv_processing",
+      type = "message",
+      duration = NULL
+    )
     
     tryCatch({
       matcher <- CVMatcher(MODEL_PATH)
@@ -126,9 +138,21 @@ server <- function(input, output, session) {
       # Ensure row names are NULL
       rownames(vals$top_matches) <- NULL
       
-      showNotification("CV analysé avec succès!", type = "message")
+      # Retirer la notification de chargement
+      removeNotification("cv_processing")
+      
+      showNotification(
+        "✅ CV analysé avec succès! Les meilleures correspondances sont affichées ci-dessous.", 
+        type = "message",
+        duration = 5
+      )
     }, error = function(e) {
-      showNotification(paste("Erreur:", e$message), type = "error")
+      removeNotification("cv_processing")
+      showNotification(
+        paste("❌ Erreur lors de l'analyse:", e$message), 
+        type = "error",
+        duration = 10
+      )
       print(paste("Debug error:", e$message))
       reticulate::py_last_error()  # Print Python traceback
     })
@@ -586,9 +610,19 @@ server <- function(input, output, session) {
     }
   )
   
-  # --- Match Tab: Top 5 CV Matches (from Python model) ---
+  # --- LLM Tab: Top 5 CV Matches (from Python model) ---
   output$cv_top_matches <- renderUI({
-    req(vals$top_matches)
+    # État par défaut: message d'invitation
+    if (is.null(vals$top_matches)) {
+      return(
+        div(
+          class = "text-center py-5",
+          icon("cloud-upload-alt", class = "fa-4x text-muted mb-3"),
+          h4("Aucune analyse effectuée", class = "text-muted"),
+          p("Uploadez votre CV et cliquez sur 'Lancer l'analyse IA' pour découvrir les offres qui vous correspondent le mieux.")
+        )
+      )
+    }
     
     df <- vals$top_matches
     
@@ -602,14 +636,24 @@ server <- function(input, output, session) {
     
     # Check if dataframe has rows
     if (nrow(df) == 0) {
-      return(p("Aucune correspondance trouvée."))
+      return(
+        div(
+          class = "text-center py-5",
+          icon("search", class = "fa-4x text-warning mb-3"),
+          h4("Aucune correspondance trouvée", class = "text-muted"),
+          p("Le modèle n'a pas trouvé d'offres correspondant à votre profil. Essayez avec un autre CV.")
+        )
+      )
     }
     
     tagList(
-      h3("🔥 Top 5 Offres correspondant à votre CV"),
+      div(
+        class = "alert alert-success d-flex align-items-center mb-4",
+        icon("check-circle", class = "me-2"),
+        strong(paste0("Analyse terminée! ", nrow(df), " offres correspondent à votre profil."))
+      ),
       lapply(seq_len(nrow(df)), function(i) {
-        # Get the job ID - you'll need to ensure this is returned from Python
-        # If not available, you might need to match by title or add it to the Python output
+        # Get the job ID
         job_id <- if("ID" %in% colnames(df)) {
           df$ID[i]
         } else {
@@ -620,38 +664,87 @@ server <- function(input, output, session) {
           if(nrow(matching_job) > 0) matching_job$ID else NA
         }
         
+        # Déterminer la couleur du badge selon le score
+        score_val <- round(as.numeric(df$similarity_score[i]), 2)
+        badge_color <- if(score_val >= 80) {
+          "success"
+        } else if(score_val >= 60) {
+          "info"
+        } else {
+          "warning"
+        }
+        
         card(
-          class = "mb-3 shadow",
+          class = "mb-3 shadow-sm border-0",
+          style = "border-left: 4px solid #28a745 !important;",
           card_body(
-            h5(as.character(df$intitule_poste[i])),
-            p(strong("Score de correspondance : "), 
-              paste0(round(as.numeric(df$similarity_score[i]), 2), "%")),
-            if("entreprise" %in% colnames(df)) {
-              p(strong("Entreprise : "), as.character(df$entreprise[i]))
-            },
-            if("ville" %in% colnames(df)) {
-              p(strong("Lieu : "), as.character(df$ville[i]))
-            },
-            p(substr(as.character(df$description[i]), 1, 250), "..."),
             div(
-              class = "d-flex gap-2 mt-3",
+              class = "d-flex justify-content-between align-items-start mb-2",
+              h5(
+                class = "mb-0",
+                span(class = paste0("badge bg-", badge_color, " me-2"), 
+                     paste0("#", i)),
+                as.character(df$intitule_poste[i])
+              ),
+              span(
+                class = paste0("badge bg-", badge_color),
+                style = "font-size: 1em;",
+                paste0(score_val, "% match")
+              )
+            ),
+            
+            if("entreprise" %in% colnames(df)) {
+              p(class = "mb-2",
+                icon("building", class = "text-primary me-1"),
+                strong("Entreprise : "), 
+                as.character(df$entreprise[i]))
+            },
+            
+            if("ville" %in% colnames(df)) {
+              p(class = "mb-2",
+                icon("map-marker-alt", class = "text-danger me-1"),
+                strong("Lieu : "), 
+                as.character(df$ville[i]))
+            },
+            
+            div(
+              class = "mb-3 p-3 bg-light rounded",
+              p(class = "mb-0 small", 
+                substr(as.character(df$description[i]), 1, 300), 
+                if(nchar(as.character(df$description[i])) > 300) "..." else "")
+            ),
+            
+            div(
+              class = "d-flex gap-2 flex-wrap",
               if(!is.na(job_id)) {
                 actionButton(
                   paste0("view_match_", job_id),
-                  "Voir les détails",
+                  "Voir les détails complets",
                   icon = icon("eye"),
                   class = "btn-primary btn-sm",
                   onclick = paste0("Shiny.setInputValue('view_click_id', ", 
                                    job_id, ", {priority: 'event'})")
                 )
               },
+              
               if("lien_annonce" %in% colnames(df) && !is.na(df$lien_annonce[i])) {
                 a(
                   href = as.character(df$lien_annonce[i]),
                   target = "_blank",
                   class = "btn btn-outline-primary btn-sm",
                   icon("external-link-alt"),
-                  " Voir l'offre originale"
+                  " Annonce originale"
+                )
+              },
+              
+              if(!is.na(job_id)) {
+                actionButton(
+                  paste0("add_fav_match_", job_id),
+                  "Ajouter aux favoris",
+                  icon = icon("star"),
+                  class = if(job_id %in% vals$favoris_ids) "btn-warning btn-sm" else "btn-outline-warning btn-sm",
+                  onclick = paste0("Shiny.setInputValue('fav_click_id', ", 
+                                   job_id, ", {priority: 'event'})")
                 )
               }
             )

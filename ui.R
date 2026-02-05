@@ -13,8 +13,9 @@ ui_tab_home <- nav_panel(
       h3("Bienvenue sur JobMatch Data 🎯", class = "mt-0"),
       p("Explorez, analysez et matchez avec les meilleures offres Data du marché.", style="font-size: 1.1em; opacity: 0.9;"),
       div(class = "text-start mt-3",
-          actionButton("go_to_match", "Matcher mon CV 🔥", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
-          actionButton("go_to_search", "Recherche classique 🔍", class = "btn-outline-light", style="border-radius: 30px; padding: 8px 20px;")
+          actionButton("go_to_search", "Recherche classique 🔍", class = "btn-outline-light", style="border-radius: 30px; padding: 8px 20px;"),
+          actionButton("go_to_match", "Matcher par compétences 🔥", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
+          actionButton("go_to_llm", "Recherche par IA 🤖", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
       )
     )
   ),
@@ -70,42 +71,138 @@ ui_tab_map <- nav_panel(
   )
 )
 
+# NOUVEL ONGLET: Recherche par LLM (analyse CV avec IA)
+ui_tab_llm <- nav_panel(
+  title = "Recherche par LLM",
+  value = "Recherche par LLM",
+  icon = icon("robot"),
+  style = "min-height: 85vh;",
+  div(
+    class = "container-fluid",
+    
+    # En-tête explicatif
+    card(
+      class = "hero-section mb-4",
+      fill = FALSE,
+      div(
+        h3("🤖 Analyse intelligente de votre CV", class = "mt-0"),
+        p("Uploadez votre CV et laissez notre modèle d'IA identifier les offres les plus pertinentes pour votre profil.", 
+          style="font-size: 1.05em; opacity: 0.95;"),
+        p(class = "mb-0", 
+          icon("info-circle"), 
+          " Notre modèle analyse sémantiquement votre CV et le compare à l'ensemble des offres disponibles.",
+          style = "font-size: 0.95em; opacity: 0.85;")
+      )
+    ),
+    
+    # Section upload et analyse
+    card(
+      class = "mb-4 shadow-sm",
+      card_header(
+        div(
+          class = "d-flex align-items-center",
+          icon("file-upload", class = "me-2"),
+          "Analyser mon CV"
+        )
+      ),
+      card_body(
+        layout_columns(
+          col_widths = c(8, 4),
+          fill = FALSE,
+          div(
+            fileInput("cv_file", 
+                      "Sélectionnez votre CV (format PDF)", 
+                      accept = c(".pdf"),
+                      buttonLabel = "Parcourir...",
+                      placeholder = "Aucun fichier sélectionné"),
+            helpText(
+              icon("lightbulb"), 
+              " Astuce: Assurez-vous que votre CV contient vos compétences techniques et votre expérience."
+            )
+          ),
+          div(
+            class = "d-flex align-items-center justify-content-center h-100",
+            actionButton("apply_cv_match", 
+                         "Lancer l'analyse IA", 
+                         icon = icon("brain"),
+                         class = "btn-success btn-lg w-100",
+                         style = "height: 60px; font-size: 1.1em;")
+          )
+        )
+      )
+    ),
+    
+    # Section résultats
+    card(
+      class = "shadow-sm",
+      full_screen = TRUE,
+      card_header(
+        div(
+          class = "d-flex align-items-center",
+          icon("star", class = "me-2 text-warning"),
+          "Top correspondances IA"
+        )
+      ),
+      card_body(
+        uiOutput("cv_top_matches")
+      )
+    )
+  )
+)
+
+# ONGLET MODIFIÉ: Match par compétences (Tinder style)
 ui_tab_match <- nav_panel(
-  title = "Match avec mon CV",
+  title = "Match par compétences",
   value = "Match avec une offre",
   icon = icon("fire"),
   style = "min-height: 85vh;",
   div(
     class = "container-fluid",
     
-    # Section 1: Upload CV for AI matching
+    # En-tête explicatif
     card(
-      class = "mb-4",
-      card_header("📄 Analyser mon CV avec IA"),
+      class = "mb-3",
+      fill = FALSE,
       card_body(
-        fileInput("cv_file", "Télécharger votre CV (PDF)", 
-                  accept = c(".pdf")),
-        actionButton("apply_cv_match", "Analyser et matcher", 
-                     class = "btn-success"),
-        hr(),
-        uiOutput("cv_top_matches")
+        class = "py-2",
+        div(
+          class = "d-flex align-items-center",
+          icon("info-circle", class = "me-2 text-info"),
+          p(class = "mb-0", 
+            "Saisissez vos compétences clés pour trier les offres. Swipez ensuite comme sur Tinder pour sauvegarder vos favoris !",
+            style = "font-size: 0.95em;")
+        )
       )
     ),
     
-    # Section 2: Skills-based Tinder interface
+    # Interface de matching style Tinder
     layout_sidebar(
       sidebar = sidebar(
         width = "375px",
         title = "🎯 Votre Profil",
-        selectizeInput("cv_skills", "Vos compétences clés :", 
+        selectizeInput("cv_skills", 
+                       "Vos compétences clés :", 
                        choices = choix_competences_reels, 
                        multiple = TRUE, 
                        options = list(create = TRUE, 
                                       placeholder = "Ex: Python, AWS...", 
                                       plugins = list('remove_button'))),
         helpText("Le deck d'offres sera trié pour afficher les meilleures correspondances en premier."),
-        actionButton("apply_cv_sort", "Trier les offres", 
-                     class="btn-primary w-100")
+        actionButton("apply_cv_sort", 
+                     "Trier les offres", 
+                     class="btn-primary w-100"),
+        hr(),
+        div(
+          class = "text-muted small",
+          icon("keyboard"),
+          " Raccourcis clavier:",
+          tags$ul(
+            class = "small ps-3 mb-0",
+            tags$li("← : Passer"),
+            tags$li("→ : Aimer"),
+            tags$li("Entrée : Continuer")
+          )
+        )
       ),
       div(
         style = "max-width: 700px; margin: 0 auto;",
@@ -118,8 +215,6 @@ ui_tab_match <- nav_panel(
     )
   )
 )
-
-
 
 ui_tab_favs <- nav_panel(
   title = "Favoris",
@@ -154,6 +249,7 @@ page_navbar(
   ui_tab_home,
   ui_tab_search,
   ui_tab_map,
-  ui_tab_match,
+  ui_tab_llm,          # NOUVEL ONGLET en 2ème position
+  ui_tab_match,        # Onglet match modifié
   ui_tab_favs
 )

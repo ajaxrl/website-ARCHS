@@ -21,6 +21,8 @@ library(stringr)
 library(leaflet)
 library(htmltools)
 
+#use_python("C:/Users/Lucas/AppData/Local/Programs/Python/Python39/python.exe", required=TRUE)
+
 use_python(here("pip_env", "Scripts", "python.exe"), required = TRUE)
 
 # ==============================================================================
