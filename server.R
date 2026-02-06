@@ -200,10 +200,10 @@ server <- function(input, output, session) {
     )
     
     tryCatch({
-      matcher <- CVMatcher(MODEL_PATH, "data/jobs.csv")
+      matcher <- CVMatcher(MODEL_PATH)
       py_res <- matcher$match_all_jobs(
         cv_pdf = input$cv_file$datapath,
-        #jobs_csv = "data/jobs.csv",
+        jobs_csv = "data/jobs.csv",
         top_n = as.integer(5)  # Ensure integer
       )
       
@@ -813,32 +813,37 @@ server <- function(input, output, session) {
             
             div(
               class = "d-flex gap-2 flex-wrap",
-              
-              # Button 1: View details - use tags$button with onclick
               if(!is.na(job_id)) {
-                tags$button(
-                  class = "btn btn-primary btn-sm",
-                  onclick = paste0("Shiny.setInputValue('view_click_id', ", job_id, ", {priority: 'event'})"),
-                  tags$i(class = "fa fa-eye"),
-                  " Voir les détails complets"
+                actionButton(
+                  paste0("view_match_", job_id),
+                  "Voir les détails complets",
+                  icon = icon("eye"),
+                  class = "btn-primary btn-sm",
+                  onclick = paste0("Shiny.setInputValue('view_click_id', ", 
+                                   job_id, ", {priority: 'event'})")
                 )
               },
               
-              # Button 2: Original announcement - regular link (no changes needed)
-              if(!is.na(job_id)) {
-                # Récupérer l'offre complète depuis df_offres
-                offre_complete <- df_offres %>% filter(ID == job_id)
-                
-                if(nrow(offre_complete) > 0 && !is.na(offre_complete$Lien_Annonce[1])) {
-                  tags$a(
-                    href = as.character(offre_complete$Lien_Annonce[1]),
-                    target = "_blank",
-                    class = "btn btn-outline-primary btn-sm",
-                    tags$i(class = "fa fa-external-link-alt"),
-                    " Annonce originale"
-                  )
-                }
+              if("lien_annonce" %in% colnames(df) && !is.na(df$lien_annonce[i])) {
+                a(
+                  href = as.character(df$lien_annonce[i]),
+                  target = "_blank",
+                  class = "btn btn-outline-primary btn-sm",
+                  icon("external-link-alt"),
+                  " Annonce originale"
+                )
               },
+              
+              if(!is.na(job_id)) {
+                actionButton(
+                  paste0("add_fav_match_", job_id),
+                  "Ajouter aux favoris",
+                  icon = icon("star"),
+                  class = if(job_id %in% vals$favoris_ids) "btn-warning btn-sm" else "btn-outline-warning btn-sm",
+                  onclick = paste0("Shiny.setInputValue('fav_click_id', ", 
+                                   job_id, ", {priority: 'event'})")
+                )
+              }
             )
           )
         )
