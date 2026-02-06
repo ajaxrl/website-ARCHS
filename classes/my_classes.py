@@ -12,7 +12,7 @@ nltk.download('punkt_tab')
 
 class Doc2VecTrainer:
 
-    def __init__(self, vector_size=50, min_count=5, epochs=40, alpha=0.001):
+    def __init__(self, vector_size=50, min_count=5, epochs=100, alpha=0.001):
         self.vector_size = vector_size
         self.min_count = min_count
         self.epochs = epochs
@@ -29,7 +29,7 @@ class Doc2VecTrainer:
         df['data'] = df[['intitule_poste','education','competences','experience']].apply(
             lambda x: ' '.join(x.dropna().astype(str)), axis=1
         )
-
+        print(len(df))
         tagged_data = [
             TaggedDocument(words=word_tokenize(text.lower()), tags=[str(i)])
             for i, text in enumerate(df['data'])
@@ -45,9 +45,10 @@ class Doc2VecTrainer:
         model.build_vocab(tagged_data)
 
         for epoch in range(self.epochs):
+            print(f"Training epoch {epoch+1}/{self.epochs}")
             model.train(tagged_data,
                         total_examples=model.corpus_count,
-                        epochs=1)
+                        epochs=5)
 
         model.save(model_path)
         return model
