@@ -5,7 +5,7 @@ Sys.setenv(
 )
 
 # ==============================================================================
-# 0. Get python classes
+# 0. GET PYTHON CLASSES
 # ==============================================================================
 source_python("classes/my_classes.py")
 
@@ -22,8 +22,85 @@ server <- function(input, output, session) {
     sorted_indices = 1:nrow(df_offres),
     last_removed_from_favs = NULL,
     undo_notification_id = NULL,
-    top_matches = NULL
+    top_matches = NULL,
+    last_cleared_favs = NULL
   )
+  
+  # Modale de bienvenue
+  session$onFlushed(function() {
+    showModal(modalDialog(
+      title = "Bienvenue sur JobMatch Data 🎯",
+      "Souhaitez-vous suivre une visite guidée pour découvrir les fonctionnalités de l'application ?",
+      footer = tagList(
+        modalButton("Non, merci"),
+        actionButton("start_guide", "Oui, allons-y !", class = "btn-primary")
+      ),
+      easyClose = TRUE
+    ))
+  }, once = TRUE)
+  
+  observeEvent(input$start_guide, {
+    removeModal()
+    # On s'assure d'être sur l'accueil
+    nav_select("nav_main", "Accueil") 
+    
+    # Définition des étapes pour rintrojs
+    steps <- data.frame(
+      element = c(
+        "#tablink_home",
+        "#tour_home_kpi",
+        "#tablink_search",
+        "#tour_search_filters",
+        "#tablink_map",
+        "#tour_map",
+        "#tablink_llm",
+        "#tour_llm_section",
+        "#tablink_match",
+        "#tour_match_skills",
+        "#tablink_favs",
+        "#tour_favs_section",
+        "#tablink_home"
+      ),
+      intro = c(
+        "<h3>Tableau de bord</h3><p>Bienvenue dans votre cockpit ! Analysez en un clin d'œil les <b>tendances majeures</b> et le dynamisme du marché de la Data.</p>",
+        "<h3>Le marché en chiffres </h3><p>Visualisez instantanément les indicateurs essentiels : <b>salaires moyens</b>, volume d'opportunités et hubs technologiques les plus actifs.</p>",
+        "<h3>Exploration ciblée </h3><p>Accédez à notre catalogue complet d'offres. C’est ici que commence votre recherche personnalisée pour trouver l’opportunité idéale.</p>",
+        "<h3>Filtres avancés </h3><p>Télétravail, rémunération ou stack technique : affinez vos critères pour ne garder que les offres qui vous <b>correspondent vraiment</b>.</p>",
+        "<h3>Mobilité & Géographie </h3><p>Repérez votre futur lieu de travail. Visualisez les opportunités dans vos zones géographiques préférées ou à proximité de chez vous.</p>",
+        "<h3>Analyse locale </h3><p>Naviguez sur la carte interactive pour découvrir la densité des offres par région et cibler les bassins d'emploi porteurs.</p>",
+        "<h3>L'IA au service de votre carrière </h3><p>Optimisez votre temps de recherche ! Laissez notre <b>algorithme intelligent</b> analyser votre profil pour vous proposer les meilleurs matchs.</p>",
+        "<h3>Matching sémantique </h3><p>Importez votre CV (PDF) : l’IA extrait automatiquement vos compétences et identifie <b>mathématiquement</b> les offres les plus adaptées à votre parcours.</p>",
+        "<h3>Expérience intuitive </h3><p>Découvrez les offres une par une dans une interface dynamique et ludique. <b>Swipez, décidez</b>, et préparez vos candidatures en un clin d'oeil.</p>",
+        "<h3>Personnalisez l'algorithme </h3><p>Indiquez vos technologies de prédilection (Python, SQL, Cloud...) pour influencer le tri et <b>prioriser</b> les offres utilisant vos outils favoris.</p>",
+        "<h3>Votre shortlist </h3><p>Ne perdez plus jamais une offre de vue. Retrouvez ici toutes vos pépites sauvegardées, prêtes pour l’étape de la candidature.</p>",
+        "<h3>Organisation & Suivi </h3><p>Exportez votre sélection pour votre suivi personnel ou gérez votre liste en un clic avant de passer à l'action.</p>",
+        "<h3>C'est parti ! </h3><p>Toute l’équipe <b>JobMatch Data</b> vous souhaite de trouver l’opportunité qui propulsera votre carrière. Bonne chance !</p>"
+        
+      ),
+      tooltipClass = c(
+        "tour-go-home", "tour-go-home",
+        "tour-go-search", "tour-go-search",
+        "tour-go-map", "tour-go-map",
+        "tour-go-llm", "tour-go-llm",
+        "tour-go-match", "tour-go-match",
+        "tour-go-favs", "tour-go-favs",
+        "tour-go-home"
+      )
+    )
+    
+    introjs(session, 
+            options = list(
+              steps = steps,
+              nextLabel = "Suivant &rarr;",
+              prevLabel = "&larr; Retour",
+              skipLabel = "×",
+              doneLabel = "Terminer"
+            ),
+            events = list(
+              oncomplete = I('function() { $("#tablink_home").click(); }')
+            )
+    )
+  })
   
   # ===========================================================================
   # REACTIVE EXPRESSIONS (Computed once per invalidation)
@@ -99,7 +176,7 @@ server <- function(input, output, session) {
   
   # --- Navigation Events ---
   observeEvent(input$go_to_llm, {
-    nav_select("nav_main", "Recherche par LLM")
+    nav_select("nav_main", "Scanner mon CV")
   })
   
   observeEvent(input$go_to_match, {
@@ -123,10 +200,10 @@ server <- function(input, output, session) {
     )
     
     tryCatch({
-      matcher <- CVMatcher(MODEL_PATH)
+      matcher <- CVMatcher(MODEL_PATH, "data/jobs.csv")
       py_res <- matcher$match_all_jobs(
         cv_pdf = input$cv_file$datapath,
-        jobs_csv = "data/jobs.csv",
+        #jobs_csv = "data/jobs.csv",
         top_n = as.integer(5)  # Ensure integer
       )
       
@@ -254,7 +331,20 @@ server <- function(input, output, session) {
   
   # --- Clear Favorites ---
   observeEvent(input$clear_fav, {
+    req(length(vals$favoris_ids) > 0)
+    showModal(modalDialog(
+      title = "Confirmation",
+      "Êtes-vous sûr de vouloir vider tous vos favoris ?",
+      footer = tagList(
+        modalButton("Annuler"),
+        actionButton("confirm_clear_fav", "Oui, vider", class = "btn-danger")
+      )
+    ))
+  })
+  
+  observeEvent(input$confirm_clear_fav, {
     vals$favoris_ids <- c()
+    removeModal()
     showNotification("Favoris vidés.", type = "warning")
   })
   
@@ -291,7 +381,7 @@ server <- function(input, output, session) {
     
     wordcloud2(
       df_words_cloud, 
-      size = 0.8, 
+      size = 0.5, 
       color = "random-dark", 
       shape = 'circle'
     )
@@ -348,6 +438,23 @@ server <- function(input, output, session) {
     # Get current offer
     offre <- df_offres[vals$sorted_indices[vals$current_index], ]
     
+    # Liens multi-sites
+    site_buttons <- tagList()
+    
+    # Site principal
+    main_site_name <- if(!is.na(offre$Site_Source) && offre$Site_Source != "") offre$Site_Source else "Site original"
+    site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce, target = "_blank", class = "btn btn-outline-primary btn-sm me-1", icon("external-link-alt"), paste("Sur", main_site_name)))
+    
+    if (!is.na(offre$Site_Source_2) && offre$Site_Source_2 != "" && !is.na(offre$Lien_Annonce_2)) {
+      site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_2, target = "_blank", class = "btn btn-outline-info btn-sm me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_2)))
+    }
+    if (!is.na(offre$Site_Source_3) && offre$Site_Source_3 != "" && !is.na(offre$Lien_Annonce_3)) {
+      site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_3, target = "_blank", class = "btn btn-outline-info btn-sm me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_3)))
+    }
+    if (!is.na(offre$Site_Source_4) && offre$Site_Source_4 != "" && !is.na(offre$Lien_Annonce_4)) {
+      site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_4, target = "_blank", class = "btn btn-outline-info btn-sm me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_4)))
+    }
+    
     if (vals$show_success_view) {
       # Success view after liking
       card(
@@ -400,12 +507,7 @@ server <- function(input, output, session) {
         ),
         card_footer(
           class = "d-flex justify-content-between align-items-center p-3",
-          a(
-            href = offre$Lien_Annonce,
-            target = "_blank",
-            class = "btn btn-outline-secondary",
-            "Voir l'offre originale"
-          ),
+          div(site_buttons),
           a(
             href = offre$Lien_Final,
             target = "_blank",
@@ -464,12 +566,7 @@ server <- function(input, output, session) {
           ),
           card_footer(
             class = "text-center",
-            a(
-              href = offre$Lien_Annonce,
-              target = "_blank",
-              class = "btn btn-outline-primary btn-sm",
-              "Voir l'offre originale"
-            )
+            div(class="mb-2", site_buttons)
           )
         ),
         div(
@@ -716,37 +813,32 @@ server <- function(input, output, session) {
             
             div(
               class = "d-flex gap-2 flex-wrap",
+              
+              # Button 1: View details - use tags$button with onclick
               if(!is.na(job_id)) {
-                actionButton(
-                  paste0("view_match_", job_id),
-                  "Voir les détails complets",
-                  icon = icon("eye"),
-                  class = "btn-primary btn-sm",
-                  onclick = paste0("Shiny.setInputValue('view_click_id', ", 
-                                   job_id, ", {priority: 'event'})")
+                tags$button(
+                  class = "btn btn-primary btn-sm",
+                  onclick = paste0("Shiny.setInputValue('view_click_id', ", job_id, ", {priority: 'event'})"),
+                  tags$i(class = "fa fa-eye"),
+                  " Voir les détails complets"
                 )
               },
               
-              if("lien_annonce" %in% colnames(df) && !is.na(df$lien_annonce[i])) {
-                a(
-                  href = as.character(df$lien_annonce[i]),
-                  target = "_blank",
-                  class = "btn btn-outline-primary btn-sm",
-                  icon("external-link-alt"),
-                  " Annonce originale"
-                )
-              },
-              
+              # Button 2: Original announcement - regular link (no changes needed)
               if(!is.na(job_id)) {
-                actionButton(
-                  paste0("add_fav_match_", job_id),
-                  "Ajouter aux favoris",
-                  icon = icon("star"),
-                  class = if(job_id %in% vals$favoris_ids) "btn-warning btn-sm" else "btn-outline-warning btn-sm",
-                  onclick = paste0("Shiny.setInputValue('fav_click_id', ", 
-                                   job_id, ", {priority: 'event'})")
-                )
-              }
+                # Récupérer l'offre complète depuis df_offres
+                offre_complete <- df_offres %>% filter(ID == job_id)
+                
+                if(nrow(offre_complete) > 0 && !is.na(offre_complete$Lien_Annonce[1])) {
+                  tags$a(
+                    href = as.character(offre_complete$Lien_Annonce[1]),
+                    target = "_blank",
+                    class = "btn btn-outline-primary btn-sm",
+                    tags$i(class = "fa fa-external-link-alt"),
+                    " Annonce originale"
+                  )
+                }
+              },
             )
           )
         )

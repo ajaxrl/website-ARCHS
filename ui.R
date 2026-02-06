@@ -6,6 +6,7 @@
 
 ui_tab_home <- nav_panel(
   title = "Accueil",
+  value = "Accueil",
   icon = icon("chart-line"),
   card(
     class = "hero-section mb-4", fill = FALSE,
@@ -15,11 +16,12 @@ ui_tab_home <- nav_panel(
       div(class = "text-start mt-3",
           actionButton("go_to_search", "Recherche classique 🔍", class = "btn-outline-light", style="border-radius: 30px; padding: 8px 20px;"),
           actionButton("go_to_match", "Matcher par compétences 🔥", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
-          actionButton("go_to_llm", "Recherche par IA 🤖", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
+          actionButton("go_to_llm", "Scanner mon CV 🤖", class = "btn-light text-primary fw-bold me-2", style="border-radius: 30px; padding: 8px 20px;"),
       )
     )
   ),
   layout_columns(
+    id = "tour_home_kpi",
     fill = FALSE,
     value_box(title = "Offres Recensées", value = nrow(df_offres), showcase = icon("database"), theme = "primary"),
     value_box(title = "Salaire Moyen", value = if(any(!is.na(df_offres$Salaire_Moyen))) paste0(round(mean(df_offres$Salaire_Moyen, na.rm=TRUE)/1000, 1), " k€") else "N/A", showcase = icon("money-bill-wave"), theme = "success"),
@@ -28,7 +30,7 @@ ui_tab_home <- nav_panel(
   layout_columns(
     col_widths = c(8, 4), fill = FALSE,
     card(fill = FALSE, card_header("🏆 Top 10 des entreprises qui recrutent le plus"), plotOutput("plot_top_companies", height = "400px")),
-    card(fill = FALSE, card_header("☁️ Compétences les plus demandées"), wordcloud2Output("plot_cloud", height = "400px"))
+    card(fill = FALSE, card_header("☁️ Compétences les plus demandées"), wordcloud2Output("plot_cloud", height = "400px", width = "100%"))
   )
 )
 
@@ -38,6 +40,7 @@ ui_tab_search <- nav_panel(
   icon = icon("list"),
   layout_sidebar(
     sidebar = sidebar(
+      id = "tour_search_filters",
       width = "375px",
       title = "Filtres Avancés",
       textInput("search_kw", "Mots-clés", placeholder = "Ex: Python, Senior..."),
@@ -59,8 +62,10 @@ ui_tab_search <- nav_panel(
 
 ui_tab_map <- nav_panel(
   title = "Carte",
+  value = "Carte",
   icon = icon("map"),
   card(
+    id = "tour_map",
     full_screen = TRUE,
     style = "min-height: 80vh;",
     card_header("Localisation des offres"),
@@ -71,10 +76,10 @@ ui_tab_map <- nav_panel(
   )
 )
 
-# NOUVEL ONGLET: Recherche par LLM (analyse CV avec IA)
+# Recherche par LLM (analyse CV avec IA)
 ui_tab_llm <- nav_panel(
-  title = "Recherche par LLM",
-  value = "Recherche par LLM",
+  title = "Scanner mon CV",
+  value = "Scanner mon CV",
   icon = icon("robot"),
   style = "min-height: 85vh;",
   div(
@@ -82,10 +87,11 @@ ui_tab_llm <- nav_panel(
     
     # En-tête explicatif
     card(
+      id = "tour_llm_section",
       class = "hero-section mb-4",
       fill = FALSE,
       div(
-        h3("🤖 Analyse intelligente de votre CV", class = "mt-0"),
+        h3("🤖 Trouvez les offres qui vous correspondent le plus", class = "mt-0"),
         p("Uploadez votre CV et laissez notre modèle d'IA identifier les offres les plus pertinentes pour votre profil.", 
           style="font-size: 1.05em; opacity: 0.95;"),
         p(class = "mb-0", 
@@ -140,7 +146,7 @@ ui_tab_llm <- nav_panel(
         div(
           class = "d-flex align-items-center",
           icon("star", class = "me-2 text-warning"),
-          "Top correspondances IA"
+          "Top correspondances"
         )
       ),
       card_body(
@@ -150,7 +156,7 @@ ui_tab_llm <- nav_panel(
   )
 )
 
-# ONGLET MODIFIÉ: Match par compétences (Tinder style)
+# Match par compétences (Tinder style)
 ui_tab_match <- nav_panel(
   title = "Match par compétences",
   value = "Match avec une offre",
@@ -178,6 +184,7 @@ ui_tab_match <- nav_panel(
     # Interface de matching style Tinder
     layout_sidebar(
       sidebar = sidebar(
+        id = "tour_match_skills",
         width = "375px",
         title = "🎯 Votre Profil",
         selectizeInput("cv_skills", 
@@ -218,8 +225,10 @@ ui_tab_match <- nav_panel(
 
 ui_tab_favs <- nav_panel(
   title = "Favoris",
+  value = "Favoris",
   icon = icon("star"),
   card(
+    id = "tour_favs_section",
     style = "min-height: 80vh;",
     card_header("Mes offres sauvegardées"),
     div(class="d-flex justify-content-between mb-3",
@@ -239,17 +248,22 @@ page_navbar(
   theme = CONSTANTS$THEME,
   fillable = FALSE,
   
-  useShinyjs(),
-  tags$head(
-    tags$style(CSS_STYLES),
-    tags$script(JS_SCRIPTS$SMART_NAVBAR),
-    tags$script(JS_SCRIPTS$KEYBOARD_SHORTCUTS)
+  header = tagList(
+    introjsUI(),
+    useShinyjs(),
+    tags$head(
+      tags$style(CSS_STYLES),
+      tags$script(JS_SCRIPTS$SMART_NAVBAR),
+      tags$script(JS_SCRIPTS$KEYBOARD_SHORTCUTS),
+      tags$script(JS_SCRIPTS$TAB_IDS),
+      tags$script(JS_SCRIPTS$INTRO_TAB_NAV)
+    )
   ),
   
   ui_tab_home,
   ui_tab_search,
   ui_tab_map,
-  ui_tab_llm,          # NOUVEL ONGLET en 2ème position
-  ui_tab_match,        # Onglet match modifié
+  ui_tab_llm,          
+  ui_tab_match,        
   ui_tab_favs
 )

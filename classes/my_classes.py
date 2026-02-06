@@ -6,6 +6,7 @@ import PyPDF2
 from numpy.linalg import norm
 import re
 import nltk
+import time
 
 nltk.download('punkt')
 nltk.download('punkt_tab')
@@ -48,7 +49,7 @@ class Doc2VecTrainer:
             print(f"Training epoch {epoch+1}/{self.epochs}")
             model.train(tagged_data,
                         total_examples=model.corpus_count,
-                        epochs=5)
+                        epochs=model.epochs)
 
         model.save(model_path)
         return model
@@ -90,5 +91,4 @@ class CVMatcher:
 
         # Optional: reset the index to ensure integer indexing
         df_top.reset_index(drop=True, inplace=True)
-        print(df_top.columns)
         return df_top

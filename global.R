@@ -20,10 +20,13 @@ library(wordcloud2)
 library(stringr)
 library(leaflet)
 library(htmltools)
+library(rintrojs)
 
 #use_python("C:/Users/Lucas/AppData/Local/Programs/Python/Python39/python.exe", required=TRUE)
 
 use_python(here("pip_env", "Scripts", "python.exe"), required = TRUE)
+
+#use_virtualenv("pip_env", required = TRUE)
 
 # ==============================================================================
 # 0. Get python classes and models
@@ -32,7 +35,7 @@ use_python(here("pip_env", "Scripts", "python.exe"), required = TRUE)
 source_python("classes/my_classes.py")
 
 MODEL_PATH <- "model/cv_job_matching.model"
-DATA_PATH <- here("data", "jobs.csv")
+DATA_PATH <- here("data", "jobs_multisite_dupes.csv")
 
 if (!file.exists(MODEL_PATH)) {
   trainer <- Doc2VecTrainer()
@@ -44,7 +47,8 @@ if (!file.exists(MODEL_PATH)) {
 # ==============================================================================
 
 CONSTANTS <- list(
-  DATA_FILE = "data/jobs.csv",
+  # Utiliser le fichier avec doublons multisites
+  DATA_FILE = "data/jobs_multisite_dupes.csv",
   MAX_SALARY_DEFAULT = 150000,
   MAX_EXP_DEFAULT = 20,
   SALARY_STEP = 5000,
@@ -100,6 +104,28 @@ CSS_STYLES <- HTML("
   /* Style pour la carte Leaflet */
   .leaflet-popup-content-wrapper { border-radius: 5px; }
   .leaflet-popup-content { font-size: 14px; }
+  
+  /* Custom IntroJS Styling (Le Pas-à-pas) */
+  .introjs-tooltip {
+    border-radius: 12px !important;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2) !important;
+    font-family: 'Inter', sans-serif !important;
+    padding: 15px !important;
+    border: none !important;
+  }
+  .introjs-tooltip h3 {
+    color: #6f42c1; /* Couleur primaire du thème */
+    font-size: 1.2em;
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .introjs-button {
+    border-radius: 20px !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    padding: 5px 15px !important;
+  }
 ")
 
 # --- Scripts JS ---
@@ -125,6 +151,45 @@ JS_SCRIPTS <- list(
       if(e.keyCode == 39 && $('#like_btn').is(':visible')) { $('#like_btn').click(); } // Right Arrow
       if(e.keyCode == 13 && $('#continue_btn').is(':visible')) { $('#continue_btn').click(); } // Enter
     });
+  "),
+  TAB_IDS = HTML("
+    $(function() {
+      var map = {
+        'Accueil': 'tablink_home',
+        'Parcourir': 'tablink_search',
+        'Carte': 'tablink_map',
+        'Scanner mon CV': 'tablink_llm',
+        'Match par compétences': 'tablink_match',
+        'Favoris': 'tablink_favs'
+      };
+      $('#nav_main .nav-link').each(function() {
+        var t = $.trim($(this).text());
+        if (map[t]) $(this).attr('id', map[t]);
+      });
+    });
+  "),
+  INTRO_TAB_NAV = HTML("
+  $(function() {
+    function clickTabByStepClass() {
+      var tip = $('.introjs-tooltip');
+      if (!tip.length) return;
+      var cls = tip.attr('class') || '';
+      var targetId = null;
+      if (cls.indexOf('tour-go-home') !== -1) targetId = 'tablink_home';
+      if (cls.indexOf('tour-go-search') !== -1) targetId = 'tablink_search';
+      if (cls.indexOf('tour-go-map') !== -1) targetId = 'tablink_map';
+      if (cls.indexOf('tour-go-llm') !== -1) targetId = 'tablink_llm';
+      if (cls.indexOf('tour-go-match') !== -1) targetId = 'tablink_match';
+      if (cls.indexOf('tour-go-favs') !== -1) targetId = 'tablink_favs';
+      if (targetId) {
+        var el = document.getElementById(targetId);
+        if (el) { el.click(); window.scrollTo(0, 0); }
+      }
+    }
+    $(document).on('click', '.introjs-nextbutton, .introjs-prevbutton', function() {
+      setTimeout(clickTabByStepClass, 100);
+    });
+  });
   ")
 )
 
@@ -159,7 +224,7 @@ calculer_score_cv <- function(texte_offre, liste_tags_cv) {
   sum(sapply(tolower(liste_tags_cv), function(tag) {
     safe_tag <- gsub("([+.#])", "\\\\\\1", tag)
     pattern <- paste0("\\b", safe_tag, "\\b")
-    grepl(pattern, textes_offres_lower)
+    grepl(pattern, texte_offre_lower)
   }))
 }
 
@@ -177,10 +242,10 @@ creer_barre_score_tech <- function(score) {
   score <- min(max(score, 0), 100)
   color <- if (score >= 80) "#2ecc71" else if (score >= 50) "#f1c40f" else "#e74c3c"
   div(class = "mb-3",
-    strong(paste0("Score de match : ", score, "%")),
-    div(class = "tech-score-bar",
-      div(class = "tech-score-fill", style = paste0("width:", score, "%; background:", color, ";"))
-    )
+      strong(paste0("Score de match : ", score, "%")),
+      div(class = "tech-score-bar",
+          div(class = "tech-score-fill", style = paste0("width:", score, "%; background:", color, ";"))
+      )
   )
 }
 
@@ -194,7 +259,16 @@ prepare_table_display_data <- function(data_df, favoris_ids) {
                 paste0('<button class="btn-action-table fav-active" title="Retirer des favoris" onclick="Shiny.setInputValue(\'fav_click_id\', ', ID, ', {priority: \'event\'})"><i class="fa fa-star"></i></button>'),
                 paste0('<button class="btn-action-table fav-inactive" title="Ajouter aux favoris" onclick="Shiny.setInputValue(\'fav_click_id\', ', ID, ', {priority: \'event\'})"><i class="far fa-star"></i></button>'))
       ),
-      Intitule_Link = paste0("<a href='", Lien_Final, "' target='_blank' style='text-decoration:none; font-weight:bold; color:#333;'>", Intitule, "</a>"),
+      
+      # Calcul du nombre de sites supplémentaires pour affichage badge
+      Nb_Sites = (ifelse(!is.na(Site_Source_2) & Site_Source_2 != "", 1, 0) + 
+                    ifelse(!is.na(Site_Source_3) & Site_Source_3 != "", 1, 0) + 
+                    ifelse(!is.na(Site_Source_4) & Site_Source_4 != "", 1, 0)),
+      Badge_Multi = ifelse(Nb_Sites > 0, 
+                           paste0(" <span class='badge bg-info' style='font-size:0.75em; vertical-align: text-bottom;' title='Disponible sur dautres sites'>+", Nb_Sites, " site(s)</span>"), 
+                           ""),
+      
+      Intitule_Link = paste0("<a href='", Lien_Final, "' target='_blank' style='text-decoration:none; font-weight:bold; color:#333;'>", Intitule, "</a>", Badge_Multi),
       Salaire_Fmt = if_else(!is.na(Salaire_Moyen), paste(format(Salaire_Moyen, big.mark=" ", scientific = FALSE), "€"), "N/A"),
       Exp_Fmt = if_else(!is.na(Experience_Clean), paste(Experience_Clean, "an(s)"), "N/A")
     ) %>%
@@ -206,18 +280,36 @@ prepare_table_display_data <- function(data_df, favoris_ids) {
 generate_map_popup_content <- function(data) {
   paste0(
     "<div style='text-align: center; min-width: 150px;'>",
-      "<h6 style='margin: 0 0 5px 0; color: #0d6efd; font-weight: bold;'>", htmlEscape(data$Intitule), "</h6>",
-      "<div style='font-size: 0.9em; color: #555; margin-bottom: 8px;'>",
-        "🏢 ", htmlEscape(data$Entreprise), "<br/>",
-        "📍 ", htmlEscape(data$Lieu),
-      "</div>",
-      "<a href='", data$Lien_Annonce, "' target='_blank' class='btn btn-sm btn-primary w-100' style='color: white; text-decoration: none;'>Voir l'offre</a>",
+    "<h6 style='margin: 0 0 5px 0; color: #0d6efd; font-weight: bold;'>", htmlEscape(data$Intitule), "</h6>",
+    "<div style='font-size: 0.9em; color: #555; margin-bottom: 8px;'>",
+    "🏢 ", htmlEscape(data$Entreprise), "<br/>",
+    "📍 ", htmlEscape(data$Lieu),
+    "</div>",
+    "<a href='", data$Lien_Annonce, "' target='_blank' class='btn btn-sm btn-primary w-100' style='color: white; text-decoration: none;'>Voir l'offre</a>",
     "</div>"
   )
 }
 
 #' Crée la modale de détails d'une offre
 create_job_modal <- function(offre) {
+  # Gestion des liens multi-sites (doublons)
+  site_buttons <- tagList()
+  
+  # 1. Site principal (Bouton plein)
+  main_site_name <- if(!is.na(offre$Site_Source) && offre$Site_Source != "") offre$Site_Source else "Site original"
+  site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce, target = "_blank", class = "btn btn-primary me-1", icon("external-link-alt"), paste("Sur", main_site_name)))
+  
+  # 2. Sites secondaires (Boutons outline)
+  if (!is.na(offre$Site_Source_2) && offre$Site_Source_2 != "" && !is.na(offre$Lien_Annonce_2)) {
+    site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_2, target = "_blank", class = "btn btn-outline-primary me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_2)))
+  }
+  if (!is.na(offre$Site_Source_3) && offre$Site_Source_3 != "" && !is.na(offre$Lien_Annonce_3)) {
+    site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_3, target = "_blank", class = "btn btn-outline-primary me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_3)))
+  }
+  if (!is.na(offre$Site_Source_4) && offre$Site_Source_4 != "" && !is.na(offre$Lien_Annonce_4)) {
+    site_buttons <- tagList(site_buttons, a(href = offre$Lien_Annonce_4, target = "_blank", class = "btn btn-outline-primary me-1", icon("external-link-alt"), paste("Sur", offre$Site_Source_4)))
+  }
+  
   modalDialog(
     title = offre$Intitule, size = "xl", easyClose = TRUE,
     h4(offre$Entreprise, span(class="text-muted", style="font-size: 0.8em;", paste(" • ", offre$Secteur))),
@@ -241,7 +333,7 @@ create_job_modal <- function(offre) {
     div(style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa; padding: 10px; border-radius: 5px;", p(offre$Description)),
     footer = tagList(
       span(class="text-muted me-auto", paste("Publié le :", offre$Date_Publication)),
-      a(href = offre$Lien_Annonce, target = "_blank", class = "btn btn-primary", "Voir l'offre originale"),
+      site_buttons,
       actionButton("modal_add_fav", "Ajouter aux Favoris", icon=icon("star"), class="btn-warning", onclick=paste0("Shiny.setInputValue('fav_click_id', ", offre$ID, ", {priority: 'event'})")),
       modalButton("Fermer")
     )
@@ -255,7 +347,14 @@ create_job_modal <- function(offre) {
 load_and_prepare_data <- function(filepath) {
   if (!file.exists(filepath)) stop("Fichier de données introuvable : ", filepath)
   
-  df_raw <- readr::read_delim(filepath, delim = ",", show_col_types = FALSE)
+  df_raw <- readr::read_delim(filepath, delim = ",", show_col_types = FALSE, na = c("", "NA", "None", "nan"))
+  
+  # Sécurisation : ajout des colonnes optionnelles si elles manquent pour éviter les erreurs dplyr
+  optional_cols <- c("site_source2", "lien_annonce2", "site_source3", "lien_annonce3", "site_source4", "lien_annonce4")
+  for (col in optional_cols) {
+    if (!col %in% names(df_raw)) df_raw[[col]] <- NA_character_
+    else df_raw[[col]] <- as.character(df_raw[[col]]) # Force le type caractère
+  }
   
   df_raw %>%
     mutate(ID = row_number()) %>%
@@ -275,15 +374,26 @@ load_and_prepare_data <- function(filepath) {
         !is.na(duree_contrat) & duree_contrat != "" ~ duree_contrat,
         TRUE ~ "Non spécifié"
       ),
-      Experience_Clean = as.numeric(experience),
+      Experience_Clean = if ("site_source" %in% names(df_raw)) {
+        ifelse(grepl("HelloWork", site_source, ignore.case = TRUE), NA_real_, as.numeric(experience))
+      } else {
+        as.numeric(experience)
+      },
       Lien_Initial = lien_postuler_initial,
       Lien_Final = site_source_final,
       Lien_Annonce = lien_annonce,
+      Site_Source = if ("site_source" %in% names(df_raw)) site_source else "Autre",
       Teletravail = ifelse(is.na(teletravail) | teletravail == "", "Non spécifié", teletravail),
       Education = ifelse(is.na(education) | education == "", "Non spécifié", education),
       Date_Publication = ifelse(is.na(date_publication), "Non spécifié", as.character(date_publication)),
       Latitude = as.numeric(latitude),
-      Longitude = as.numeric(longitude)
+      Longitude = as.numeric(longitude),
+      Site_Source_2 = site_source2,
+      Lien_Annonce_2 = lien_annonce2,
+      Site_Source_3 = site_source3,
+      Lien_Annonce_3 = lien_annonce3,
+      Site_Source_4 = site_source4,
+      Lien_Annonce_4 = lien_annonce4
     )
 }
 
@@ -318,7 +428,7 @@ df_words_cloud <- {
   all_skills <- trimws(unlist(strsplit(df_offres$Competences_Clean, ",")))
   all_skills <- all_skills[all_skills != ""]
   if (length(all_skills) > 0) {
-    data.frame(table(all_skills)) %>% rename(word = all_skills, freq = Freq) %>% arrange(desc(freq)) %>% head(80)
+    data.frame(table(all_skills)) %>% rename(word = all_skills, freq = Freq) %>% arrange(desc(freq)) %>% head(150)
   } else {
     data.frame(word = character(), freq = numeric())
   }
